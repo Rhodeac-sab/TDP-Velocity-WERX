@@ -1,0 +1,132 @@
+version: '3.8'
+
+services:
+  python_env:
+    image: python:latest
+    container_name: python_env
+    volumes:
+      - staging:/staging
+      - result:/result
+      - embarkation:/embarkation
+      - data_warehouse1:/data_warehouse1
+      - data_warehouse2:/data_warehouse2
+    command: >
+      /bin/sh -c "apt-get update &&
+        apt-get install -y vim nano &&
+        pip install --no-cache-dir pytesseract pymat 
+        googletrans translate-toolkit watchdog tika 
+        cryptography pycryptodome pysolr mysql-connector-python &&
+        tail -f /dev/null"
+
+  perl_env:
+    image: perl:latest
+    container_name: perl_env
+    volumes:
+      - ./perl_scripts:/app/perl_scripts
+      - staging:/staging
+      - result:/result
+      - embarkation:/embarkation
+    command: >
+      /bin/sh -c "apt-get update &&
+        apt-get install -y cpanminus gpg cron &&
+        cpanm Crypt::OpenSSL::RSA Crypt::CBC JSON XML::Twig MIME::Base64 &&
+        tail -f /dev/null"
+
+  file_monitor:
+    image: python:latest
+    container_name: file_monitor
+    volumes:
+      - ./file_processor.py:/app/file_processor.py
+      - staging:/staging
+      - result:/result
+      - embarkation:/embarkation
+    depends_on:
+      - python_env
+      - tika
+      - solr
+      - mysql
+    command: >
+      /bin/sh -c "pip install --no-cache-dir watchdog pysolr tika mysql-connector-python &&
+        python /app/file_processor.py"
+
+  perl_file_processing:
+    image: perl:latest
+    container_name: perl_file_processing
+    volumes:
+      - ./perl_scripts:/app/perl_scripts
+      - staging:/staging
+      - result:/result
+      - embarkation:/embarkation
+      - data_warehouse1:/data_warehouse1
+      - data_warehouse2:/data_warehouse2
+    command: >
+      /bin/sh -c "chmod +x /app/perl_scripts/*.pl &&
+        crontab /app/perl_scripts/cron_jobs.txt &&
+        cron -f"
+
+  tika:
+    image: apache/tika:latest
+    container_name: tika
+    ports:
+      - "9998:9998"
+    volumes:
+      - staging:/staging
+      - result:/result
+      - embarkation:/embarkation
+
+  solr:
+    image: solr:latest
+    container_name: solr
+    ports:
+      - "8983:8983"
+    volumes:
+      - solr_data:/var/solr
+    command:
+      - solr-precreate files
+      - bin/solr start -e cloud
+      - bin/solr config -c files -p 8983 -action set-user-property -property update.autoCreateFields -value false
+
+  mysql:
+    image: mysql:latest
+    container_name: mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: file_tracking
+      MYSQL_USER: tdp_admin
+      MYSQL_PASSWORD: SSTS_2025!@
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql"
+
+  logstash:
+    image: logstash:latest
+    container_name: logstash
+    volumes:
+      - ./logstash.conf:/usr/share/logstash/pipeline/logstash.conf
+    ports:
+      - "5044:5044"
+      - "9600:9600"
+    depends_on:
+      - perl_file_processing
+      - file_monitor
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - logstash
+
+volumes:
+  staging:
+  result:
+  embarkation:
+  data_warehouse1:
+  data_warehouse2:
+  solr_data:
+  mysql_data:
+  grafana_data:

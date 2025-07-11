@@ -1,0 +1,6 @@
+- name: Deploy File Monitoring Service
+  hosts: all
+  become: yes
+  roles:
+    - docker_setup
+    - app_deploy

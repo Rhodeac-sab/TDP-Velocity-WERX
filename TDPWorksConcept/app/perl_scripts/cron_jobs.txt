@@ -1,0 +1,3 @@
+*/5 * * * * perl /app/perl_scripts/file_hasher.pl
+*/10 * * * * perl /app/perl_scripts/metadata_extractor.pl
+0 * * * * perl /app/perl_scripts/secure_file_transfer.pl

@@ -1,0 +1,35 @@
+__init__.py:
+```python
+# content of __init__.py
+```pyproject.toml`:
+```toml
+[project]
+name = "file_processing_service"
+version = "0.1.0"
+description = "File processing service"
+authors = [
+    { name = "Your Name", email = "[email address removed]" }
+]
+dependencies = [
+    "requests",
+    "mysql-connector-python",
+    "aiohttp",
+    "pytest",
+    "unittest",
+]
+
+[project.optional-dependencies]
+dev = [
+    "flake8",
+    "mypy",
+    "black",
+    "bandit",
+]
+
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 79
+target-version = ['py37', 'py38', 'py39

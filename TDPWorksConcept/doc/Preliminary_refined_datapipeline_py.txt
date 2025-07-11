@@ -1,0 +1,48 @@
+     +--------------------+
+     |  Directory Watcher |
+     +--------------------+
+               |
+               v
+     +--------------------+
+     |  File Validation  |
+     +--------------------+
+               |
+      Valid?  |  No  ---> Move to Failed Directory
+       Yes    |
+               v
+     +--------------------+
+     |  Data Extraction   |
+     | (Tika/Tesseract)   |
+     +--------------------+
+               |
+               v
+     +--------------------+
+     |  Data Enrichment   |
+     | (NLP, Masking)     |
+     +--------------------+
+        error? |  yes  ---> Move to Failed Directory and LOG
+        No     |
+			   v
+     +------------------------+
+     |  Indexing & Storage    |
+     | (Solr, HDFS, Iceberg)  |
+     +------------------------+
+        error? |  yes  ---> Move to Failed Directory and LOG
+        No     |
+			   v
+     +----------------------+
+     |  File Embarkation    |
+     | (PLM, ALM, GitLab)   |
+     +----------------------+
+               | ----> anti-virus scan
+			   | ----> zip and compress 
+        error? |  yes  ---> Move to Failed Directory and LOG
+        No     |
+			   v
+     +-------------------------+
+     |  Archive Processed      |
+     |         Files           |
+     +-------------------------+
+
+     <== Cleanup Failed Files ==>
+     <== Email Notifications ==>

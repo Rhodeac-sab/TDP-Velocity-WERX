@@ -1,0 +1,125 @@
+version: '3.7'
+
+services:
+  # Python Application (Data Pipeline)
+  app:
+    build: .
+    container_name: data_pipeline
+    environment:
+      - ENV_FILE=.env
+      - ENCRYPTION_KEY=${ENCRYPTION_KEY}
+      - SSL_CERT_FILE=/certs/server.crt
+      - SSL_KEY_FILE=/certs/server.key
+      - SMTP_SERVER=${SMTP_SERVER}
+      - SMTP_PORT=${SMTP_PORT}
+      - EMAIL_SENDER=${EMAIL_SENDER}
+      - EMAIL_PASSWORD=${EMAIL_PASSWORD}
+      - NOTIFICATION_EMAIL=${NOTIFICATION_EMAIL}
+      - STAGING_DIR=${STAGING_DIR}
+      - ARCHIVE_DIR=${ARCHIVE_DIR}
+      - FAILED_DIR=${FAILED_DIR}
+      - MAX_RETRIES=${MAX_RETRIES}
+    volumes:
+      - ./app:/app
+      - ./certs:/certs
+      - ./data:/data
+      - ./logs:/logs
+      - ./config:/config
+    ports:
+      - "8080:8080" # Exposing ports if needed
+    depends_on:
+      - solr
+      - hdfs
+      - spark
+      - minio
+    networks:
+      - datanetwork
+
+  # Solr for indexing
+  solr:
+    image: solr:latest
+    container_name: solr
+    environment:
+      - SOLR_JAVA_MEM="-Xms2g -Xmx2g"
+    volumes:
+      - solr_data:/var/solr
+    ports:
+      - "8983:8983"
+    networks:
+      - datanetwork
+
+  # HDFS (Hadoop Distributed File System)
+  hdfs:
+    image: sequenceiq/hadoop-docker:2.7.1
+    container_name: hdfs
+    environment:
+      - CLUSTER_NAME=hadoop-cluster
+    ports:
+      - "50070:50070"
+      - "9000:9000"
+    volumes:
+      - hdfs_data:/hdfs
+    networks:
+      - datanetwork
+
+  # Spark for data processing
+  spark:
+    image: bitnami/spark:latest
+    container_name: spark
+    environment:
+      - SPARK_MODE=master
+    ports:
+      - "8081:8081"
+    volumes:
+      - spark_data:/spark
+    networks:
+      - datanetwork
+
+  # MinIO (for S3-like object storage)
+  minio:
+    image: minio/minio
+    container_name: minio
+    environment:
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+    command: server /data
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9000:9000"
+    networks:
+      - datanetwork
+
+  # Hive (for querying)
+  hive:
+    image: bde2020/hive:latest
+    container_name: hive
+    environment:
+      - HIVE_METASTORE_URI=thrift://hive-metastore:9083
+    ports:
+      - "10000:10000"
+    networks:
+      - datanetwork
+
+  # Hive Metastore Service
+  hive-metastore:
+    image: bde2020/hive-metastore:latest
+    container_name: hive-metastore
+    environment:
+      - HIVE_METASTORE_URI=thrift://hive-metastore:9083
+    networks:
+      - datanetwork
+
+volumes:
+  solr_data:
+    driver: local
+  hdfs_data:
+    driver: local
+  spark_data:
+    driver: local
+  minio_data:
+    driver: local
+
+networks:
+  datanetwork:
+    driver: bridge

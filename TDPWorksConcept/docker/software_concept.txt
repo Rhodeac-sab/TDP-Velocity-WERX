@@ -1,0 +1,15 @@
+Apache Iceberg
+Apache Spark
+Apache Hadoop
+Apache Tika
+Apache SOLR
+Apache Zookeeper
+Apache Hive
+Hive Metastore
+Apache Flink
+MinIO / S3 Gateway
+Apache NiFi	
+Trino / Presto
+SQL Client (DBeaver, Beeline, etc.)	
+Apache Ranger or Apache Knox
+

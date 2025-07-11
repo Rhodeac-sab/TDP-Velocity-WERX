@@ -1,0 +1,224 @@
++----------------------------------+
+|   Start (File Arrival)          |
+|    - Watcher detects file       |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Validate File                  |
+|    - Check existence            |
+|    - Check if empty             |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Extract Data                   |
+|    - Tika OCR                   |
+|    - Tesseract OCR (fallback)   |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Mask Sensitive Data            |
+|    - Apply data masking rules   |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Enrich Data                    |
+|    - Apply NLP & enrichment     |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Index Data                     |
+|    - Solr                       |
+|    - HDFS                       |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Write to Iceberg               |
+|    - Append to processed data   |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Log Success                    |
+|    - Update manifest            |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Archive File                   |
+|    - Move file to archive       |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Cleanup Failed Files (Scheduled)|
+|    - Remove old failed files    |
++----------------------------------+
+
+
+Varient One - Teamcenter Integration
+
++----------------------------------+
+|   Start (File Arrival)          |
+|    - Watcher detects file       |
+|    - ZooKeeper coordinates nodes|
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Validate File                  |
+|    - Check existence            |
+|    - Check if empty             |
+|    - ZooKeeper status registry  |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Extract Data                   |
+|    - Tika OCR                   |
+|    - Tesseract OCR (fallback)   |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Mask Sensitive Data            |
+|    - Apply data masking rules   |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Enrich Data                    |
+|    - NLP Lemmatization          |
+|    - Tokenization               |
+|    - Named Entity Recognition   |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Index Data                     |
+|    - Solr                       |
+|      * Facet fields indexed     |
+|      * Search-optimized tokens  |
+|    - HDFS                       |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Write to Iceberg               |
+|    - Append to processed data   |
+|    - Record Solr docID          |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Teamcenter Integration         |
+|    - Update metadata links      |
+|    - Store trace to P/N, Rev, etc|
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Log Success                    |
+|    - Update manifest            |
+|    - ZooKeeper heartbeat        |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Archive File                   |
+|    - Move file to archive       |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Cleanup Failed Files (Scheduled)|
+|    - Remove old failed files    |
++----------------------------------+
+
+Varient 2 Windchill Integration
+
++----------------------------------+
+|   Start (File Arrival)          |
+|    - Watcher detects file       |
+|    - ZooKeeper coordinates nodes|
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Validate File                  |
+|    - Check existence            |
+|    - Check if empty             |
+|    - Notify ZooKeeper on state |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Extract Data                   |
+|    - Apache Tika OCR            |
+|    - Tesseract OCR (fallback)   |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Mask Sensitive Data            |
+|    - Apply configurable rules   |
+|    - Rules stored in ZooKeeper |
++----------------------------------+
+              |
+              v
++----------------------------------------------+
+|  Enrich Data                                  |
+|    - NLP Pipeline                             |
+|       • Tokenization                          |
+|       • Lemmatization                         |
+|       • Entity Recognition (for PLM links)    |
++----------------------------------------------+
+              |
+              v
++---------------------------------------------------+
+|  Index Data                                        |
+|    - Solr                                          |
+|       • Use Facet Fields (e.g., doc type, vendor) |
+|       • Token filters + analyzers enabled         |
+|    - HDFS (for blob reference or backup)          |
++---------------------------------------------------+
+              |
+              v
++-----------------------------------------------------+
+|  Write to Iceberg                                   |
+|    - Append structured & enriched records           |
+|    - Use metadata tags from Windchill (if available)|
++-----------------------------------------------------+
+              |
+              v
++----------------------------------+
+|  Log Success                    |
+|    - Update manifest            |
+|    - ZooKeeper updates state    |
++----------------------------------+
+              |
+              v
++----------------------------------+
+|  Archive File                   |
+|    - Move file to archive       |
++----------------------------------+
+              |
+              v
++-----------------------------------------------------+
+|  Windchill Integration                              |
+|    - Associate index entries to PLM objects         |
+|    - Push metadata (e.g., doc ID, version, CAGE)    |
+|    - Pull effectivity/release status from PLM       |
++-----------------------------------------------------+
+              |
+              v
++---------------------------------------------+
+|  Cleanup Failed Files (Scheduled)           |
+|    - Remove old failed files                |
+|    - ZooKeeper cleans up lock states        |
++---------------------------------------------+
