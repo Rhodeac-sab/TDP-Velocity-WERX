@@ -197,3 +197,123 @@ def main():
 
 if __name__ == "__main__":
     main()
+# -------------------- OCR FALLBACK WITH TESSERACT --------------------
+from pdf2image import convert_from_path
+import cv2
+import numpy as np
+
+def extract_with_tesseract(file_path):
+    """Extracts text via Tesseract OCR from images or image-based PDFs."""
+    text_output = ""
+    try:
+        if file_path.lower().endswith(".pdf"):
+            images = convert_from_path(file_path)
+        else:
+            images = [Image.open(file_path)]
+
+        for img in images:
+            if hasattr(img, 'convert'):
+                img = img.convert("L")  # grayscale
+            open_cv_img = np.array(img)
+            _, thresh = cv2.threshold(open_cv_img, 150, 255, cv2.THRESH_BINARY)
+            processed = cv2.medianBlur(thresh, 3)
+            pil_image = Image.fromarray(processed)
+            text_output += pytesseract.image_to_string(pil_image, lang='eng', config='--psm 6')
+    except Exception as e:
+        logger.warning(f"OCR processing failed for {file_path}: {e}")
+    return text_output.strip()
+
+
+# -------------------- NLP ENRICHMENT --------------------
+@lru_cache(maxsize=1)
+def load_nlp_model():
+    """Load spaCy NLP model with caching."""
+    return spacy.load("en_core_web_sm")
+
+def enrich_data(text):
+    """Extract language, named entities, and key metadata from content."""
+    try:
+        language = detect(text)
+    except Exception:
+        language = "und"
+
+    nlp = load_nlp_model()
+    doc = nlp(text)
+    entities = [{"text": ent.text, "label": ent.label_} for ent in doc.ents]
+    keywords = list(set([token.lemma_ for token in doc if token.is_alpha and not token.is_stop]))
+
+    return {
+        "language": language,
+        "entities": entities,
+        "keywords": keywords[:10]
+    }
+
+# -------------------- MASKING SENSITIVE DATA --------------------
+def mask_sensitive_data(text):
+    """Apply basic masking rules to PII and sensitive content."""
+    if not isinstance(text, str):
+        return ""
+
+    import re
+    text = re.sub(r"\b\d{3}-\d{2}-\d{4}\b", "[SSN]", text)  # Mask SSNs
+    text = re.sub(r"\b\d{16}\b", "[CREDIT_CARD]", text)     # Mask CC numbers
+    text = re.sub(r"\b[\w\.-]+@[\w\.-]+\.\w{2,4}\b", "[EMAIL]", text)
+    return text
+
+# -------------------- TIKA EXTRACTION --------------------
+def extract_with_tika(file_path):
+    """Attempt metadata and content extraction using Apache Tika."""
+    try:
+        parsed = parser.from_file(file_path)
+        return {
+            "metadata": parsed.get("metadata", {}),
+            "content": parsed.get("content", "").strip()
+        }
+    except Exception as e:
+        logger.warning(f"Tika extraction failed for {file_path}: {e}")
+        return None
+
+# -------------------- SOLR INDEXING --------------------
+def index_in_solr(document):
+    """Index the enriched document in Apache Solr."""
+    try:
+        solr = pysolr.Solr(CONFIG['SOLR_URL'], always_commit=True, timeout=10)
+        solr.add([document])
+        logger.info("Indexed document in Solr.")
+    except Exception as e:
+        logger.error(f"Solr indexing failed: {e}")
+
+# -------------------- HDFS STORAGE --------------------
+def index_in_hdfs(document):
+    """Store the document JSON in HDFS."""
+    try:
+        hdfs_client = InsecureClient(CONFIG['HDFS_URL'], user=CONFIG['HDFS_USER'])
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        file_name = f"{document.get('metadata', {}).get('resourceName', 'doc')}_{timestamp}.json"
+        with hdfs_client.write(os.path.join(CONFIG['HDFS_DIR'], file_name), encoding='utf-8') as writer:
+            writer.write(json.dumps(document, indent=2))
+        logger.info(f"Document stored in HDFS: {file_name}")
+    except Exception as e:
+        logger.error(f"Failed to write to HDFS: {e}")
+
+# -------------------- EMBARKATION --------------------
+def send_to_embarkation(file_path):
+    """Send file to embarkation directory for downstream systems (PLM, ALM, etc)."""
+    try:
+        target_path = os.path.join(CONFIG['EMBARKATION_DIR'], os.path.basename(file_path))
+        shutil.copy2(file_path, target_path)
+        logger.info(f"File copied to embarkation: {target_path}")
+    except Exception as e:
+        logger.error(f"Embarkation failed: {e}")
+        raise
+
+# -------------------- MANIFEST LOGGING --------------------
+def log_manifest(file_path, status):
+    """Write status entry to manifest file for traceability."""
+    try:
+        manifest_line = f"{datetime.now().isoformat()} | {status} | {os.path.basename(file_path)}\n"
+        with open(CONFIG['MANIFEST_FILE'], "a", encoding="utf-8") as mf:
+            mf.write(manifest_line)
+        logger.info(f"Manifest updated for {file_path} with status: {status}")
+    except Exception as e:
+        logger.warning(f"Failed to write manifest log: {e}")
