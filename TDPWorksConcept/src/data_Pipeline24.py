@@ -12,6 +12,8 @@ import signal
 import shutil
 import smtplib
 import ssl
+import hashlib
+import uuid
 from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor
 from email.message import EmailMessage
@@ -298,14 +300,55 @@ def index_in_hdfs(document):
 
 # -------------------- EMBARKATION --------------------
 def send_to_embarkation(file_path):
-    """Send file to embarkation directory for downstream systems (PLM, ALM, etc)."""
+    """
+    Send file to the embarkation directory for downstream systems (PLM, ALM, ERP).
+    Generates a unique filename, logs its checksum, and creates a .meta manifest.
+    """
+    if not os.path.exists(file_path):
+        logger.error(f"File not found: {file_path}")
+        return
+
     try:
-        target_path = os.path.join(CONFIG['EMBARKATION_DIR'], os.path.basename(file_path))
+        # Build unique name
+        original_name = os.path.basename(file_path)
+        base, ext = os.path.splitext(original_name)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_id = uuid.uuid4().hex[:8]
+        target_filename = f"{base}_{timestamp}_{unique_id}{ext}"
+        target_path = os.path.join(CONFIG['EMBARKATION_DIR'], target_filename)
+
+        # Copy file
         shutil.copy2(file_path, target_path)
-        logger.info(f"File copied to embarkation: {target_path}")
+
+        # Compute checksum
+        with open(target_path, "rb") as f:
+            sha256 = hashlib.sha256(f.read()).hexdigest()
+
+        # Metadata file (.meta)
+        manifest_data = {
+            "original_file": original_name,
+            "embarkation_file": target_filename,
+            "sha256": sha256,
+            "timestamp": timestamp,
+            "source_path": file_path,
+            "destination_path": target_path,
+            "plm_trace_id": CONFIG.get("PLM_TRACE_ID", "unknown"),
+            "alm_trace_id": CONFIG.get("ALM_TRACE_ID", "unknown"),
+            "processed_by": CONFIG.get("SYSTEM_ID", "data_pipeline"),
+        }
+
+        meta_filename = f"{base}_{timestamp}_{unique_id}.meta.json"
+        meta_path = os.path.join(CONFIG['EMBARKATION_DIR'], meta_filename)
+
+        with open(meta_path, "w", encoding="utf-8") as meta_file:
+            json.dump(manifest_data, meta_file, indent=2)
+
+        logger.info(f"Embarkation success: {target_path}")
+        logger.info(f"SHA256: {sha256}")
+        logger.info(f"Manifest saved: {meta_path}")
+
     except Exception as e:
-        logger.error(f"Embarkation failed: {e}")
-        raise
+        logger.error(f"Embarkation failed for {file_path}: {e}")
 
 # -------------------- MANIFEST LOGGING --------------------
 def log_manifest(file_path, status):
